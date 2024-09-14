@@ -1,0 +1,5 @@
+#!/bin/sh
+branch=$(git rev-parse --symbolic --abbrev-ref HEAD)
+if [ "main" == "$branch" ] || [ "pre" == "$branch" ] || [ "dev" == "$branch" ]; then
+    make lint && make test
+fi

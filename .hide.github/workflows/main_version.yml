@@ -1,0 +1,15 @@
+# this workflow is run only for main branch and only when commit message
+# contains '(make-patch)/(make-minor)/(make-major)'
+
+name: main-package
+on:
+  push:
+    branches:
+      - 'main'
+jobs:
+  make-version:
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.message, '(make-patch)') || contains(github.event.head_commit.message, '(make-minor)') || contains(github.event.head_commit.message, '(make-major)')
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/package

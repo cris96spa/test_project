@@ -1,0 +1,15 @@
+# this workflow is run only for branches that starts with 'dev-' and only
+# when commit message contains '(make-dev)'
+
+name: dev-package
+on:
+  push:
+    branches:
+      - 'dev-**'
+jobs:
+  make-version:
+    runs-on: ubuntu-latest
+    if: ${{ contains(github.event.head_commit.message, '(make-dev)') }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/package
