@@ -5,11 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mlflow-template"
 version = "0.0.3"
-authors = [ {name="MLcube"}]
+authors = [{ name = "MLcube" }]
 description = "MLflow Template"
-license = "Proprietary"
+license = { text = "Proprietary" }
 readme = "README.md"
-classifiers = [ "Private :: Do not Upload",]
+classifiers = ["Private :: Do not Upload"]
 requires-python = ">=3.12.2"
 
 # list of project dependencies
@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["ml3_flow"]
+packages = ["network_graph"]
 # optional grouped dependencies that are installed only when explicitly set
 [project.optional-dependencies]
 # dev dependencies are installed during development but no for package
@@ -47,17 +47,24 @@ dev = [
     "scikit-learn>=1.3.0",
     "optuna==3.5.0",
 ]
+
 # dependencies needed to build package
 build = ["twine", "build"]
+
+[tool.uv]
+# Configuration for uv, the package manager
+index-url = "https://pypi.org/simple"
+extra-index-url = [
+    "https://download.pytorch.org/whl/cu124",
+    "https://data.pyg.org/whl/torch-2.4.0+cu124.html",
+]
 
 [tool.ruff]
 
 line-length = 79
 indent-width = 4
-target-version = "py38"
-exclude = [
-    "tests"
-]
+target-version = "py312"
+exclude = ["tests"]
 
 [tool.ruff.lint]
 fixable = ["ALL"]
@@ -69,7 +76,7 @@ select = [
     "N", # names,
     #"D", # docstrings
     "UP",
-    "ANN", # annotations
+    "ANN",   # annotations
     "ASYNC",
     #"S",  # security
     #"BLE" # blind exception
@@ -98,7 +105,7 @@ select = [
     #"RET", # return
     "SLF",
     "SLOT",
-    "SIM", # simplify
+    "SIM",  # simplify
     "TID",
     "TCH",
     "INT",
@@ -137,25 +144,25 @@ ignore = [
 ]
 
 [tool.ruff.format]
-# Like Black, use double quotes for strings.
 quote-style = "single"
 
-# Like Black, indent with spaces, rather than tabs.
 indent-style = "space"
 
-# Like Black, respect magic trailing commas.
 skip-magic-trailing-comma = false
 
-# Like Black, automatically detect the appropriate line ending.
 line-ending = "auto"
 
-# Enable auto-formatting of code examples in docstrings. Markdown,
-# reStructuredText code/literal blocks and doctests are all supported.
 docstring-code-format = false
 
+docstring-code-line-length = "dynamic"
+# Like Black, use double quotes for strings.
+# Like Black, indent with spaces, rather than tabs.
+# Like Black, respect magic trailing commas.
+# Like Black, automatically detect the appropriate line ending.
+# Enable auto-formatting of code examples in docstrings. Markdown,
+# reStructuredText code/literal blocks and doctests are all supported.
 # Set the line length limit used when formatting code snippets in
 # docstrings.
 #
 # This only has an effect when the `docstring-code-format` setting is
 # enabled.
-docstring-code-line-length = "dynamic"

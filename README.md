@@ -44,7 +44,6 @@ pip install xgboost
 
 For more information, visit the [XGBoost Installation Guide](https://xgboost.readthedocs.io/en/latest/install.html).
 
-
 ## MLflow information
 
 in order to run experiments through MLflow, it is necessary to run mlflow server

@@ -11,10 +11,7 @@ else
    export VENV_BIN=.venv/bin
 endif
 
-export PYPI_REPO_URL=https://nexus.mlcube.com/repository/mlcube-hosted/
-export PYPI_INDEX_URL=https://$(NEXUS_USER):$(NEXUS_PWD)@nexus.mlcube.com/repository/mlcube-group/simple
-
-export SRC_DIR=ml3_flow
+export SRC_DIR=network_graph
 ifndef BRANCH_NAME
 	export BRANCH_NAME=$(shell git rev-parse --abbrev-ref HEAD)
 endif
@@ -45,10 +42,14 @@ set-hooks:
 
 compile:
 	# install extra dev group
-	uv pip compile pyproject.toml -o requirements.txt --index-url $(PYPI_INDEX_URL) --extra dev --cache-dir .uv_cache
+	uv pip compile pyproject.toml --extra dev -o requirements.txt --cache-dir .uv_cache
 
 install:
-	uv pip sync requirements.txt --index-url $(PYPI_INDEX_URL) --cache-dir .uv_cache
+	uv pip sync requirements.txt --cache-dir .uv_cache
+	
+extra-torch-gpu:
+	uv pip install torch==2.4.0+cu124 torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu124 --upgrade --force-reinstall
+	uv pip install torch_geometric pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.4.0+cu124.html
 
 setup: install-uv set-hooks compile install
 
@@ -70,11 +71,9 @@ all-validation: format lint test
 
 build-publish:
 	# install extra build group
-	uv pip compile pyproject.toml -o requirements.txt --index-url $(PYPI_INDEX_URL) --extra build --cache-dir .uv_cache
-	uv pip sync requirements.txt --index-url $(PYPI_INDEX_URL) --cache-dir .uv_cache
+	uv pip compile pyproject.toml -o requirements.txt --extra build --cache-dir .uv_cache
+	uv pip sync requirements.txt --cache-dir .uv_cache
 	. $(VENV_BIN)/activate && python -m build
-	. $(VENV_BIN)/activate && twine upload --repository-url $(PYPI_REPO_URL) -u $(NEXUS_USER) -p $(NEXUS_PWD) dist/*
-	rm -rf dist/
 
 deploy-tag:
 	# This rule reads the current version tag, creates a new one with
