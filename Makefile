@@ -11,7 +11,7 @@ else
    export VENV_BIN=.venv/bin
 endif
 
-export SRC_DIR=network_graph
+export SRC_DIR=test_project
 ifndef BRANCH_NAME
 	export BRANCH_NAME=$(shell git rev-parse --abbrev-ref HEAD)
 endif

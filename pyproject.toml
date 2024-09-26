@@ -3,10 +3,10 @@ requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mlflow-template"
+name = "test_project"
 version = "0.0.3"
 authors = [{ name = "MLcube" }]
-description = "MLflow Template"
+description = "Test Project"
 license = { text = "Proprietary" }
 readme = "README.md"
 classifiers = ["Private :: Do not Upload"]
@@ -19,11 +19,12 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["network_graph"]
+packages = ["test_project"]
 # optional grouped dependencies that are installed only when explicitly set
 [project.optional-dependencies]
 # dev dependencies are installed during development but no for package
 dev = [
+    "pyyaml==5.3.1",
     "mypy",
     "pytest",
     "pytest-cov",
@@ -36,6 +37,7 @@ dev = [
     "scipy>=1.10.1",
     "pandas>=2.0.1",
     "polars>=1.6.0",
+    "pillow",
     "jupyter>=1.0.0",
     "jupyterlab>=4.0.2",
     "pyarrow>=12.0.1",
@@ -46,6 +48,22 @@ dev = [
     "xgboost>=1.7.6",
     "scikit-learn>=1.3.0",
     "optuna==3.5.0",
+    "pydantic",
+    "uvicorn",
+    "typer",
+    "fastapi",
+    "python-multipart",
+    "altair",
+    "plotly",
+    "plotnine",
+    "statsmodels",
+    "openpyxl",
+    "ydata-profiling",
+    "tensorflow",
+    "libopencv",
+    "opencv-python",
+    "holoviews",
+    "shap",
 ]
 
 # dependencies needed to build package
