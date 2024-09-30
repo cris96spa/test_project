@@ -1,4 +1,5 @@
 from PIL import Image
+from cv2 import line
 import polars as pl
 from uuid import uuid4
 import os
@@ -8,6 +9,48 @@ import torch.nn as nn
 from torchvision import models
 from scipy.stats import entropy
 from matplotlib import pyplot as plt
+from tqdm import tqdm
+import torchvision.transforms.v2 as transforms
+import plotly.graph_objects as go
+
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+torch.set_default_device(device)
+
+available_transforms = {
+    'rotate': transforms.RandomRotation,
+    'flip_horizontal': transforms.RandomHorizontalFlip,
+    'brightness': transforms.ColorJitter,
+    'contrast': transforms.ColorJitter,
+    'saturation': transforms.ColorJitter,
+    'hue': transforms.ColorJitter,
+    'color_jitter': transforms.ColorJitter,
+    'gaussian_blur': transforms.GaussianBlur,
+    'gaussian_noise': transforms.GaussianNoise,
+}
+
+# Define some colors to cycle through for each line (you can customize this list)
+colors = [
+    '#636EFA',
+    '#EF553B',
+    '#00CC96',
+    '#AB63FA',
+    '#FFA15A',
+    '#19D3F3',
+    '#FF6692',
+    '#B6E880',
+    '#FF97FF',
+    '#FECB52',
+    '#FF6E4A',
+    '#FFCC96',
+    '#B19CD9',
+    '#FF6692',
+    '#666666',
+    '#882E72',
+    '#1965B0',
+    '#7FC97F',
+    '#5B5B5B',
+]
 
 
 def saving_sample_wrapper(
@@ -128,9 +171,36 @@ def compute_kl_divergence(original_image, transformed_image):
     return kl_div
 
 
-def get_features(image, model):
+def compute_embeddings_kl_divergence(original_features, transformed_features):
+    """
+    Compute KL divergence between two sets of image embeddings.
+    parameters:
+    -----------
+        original_features (Tensor): Feature vector for the original image (batch_size, embedding_dim)
+        transformed_features (Tensor): Feature vector for the transformed image (batch_size, embedding_dim)
+    returns:
+    --------
+        float: KL divergence between the two feature vectors
+    """
+    kl_div = nn.KLDivLoss(reduction='batchmean')
+
+    # Apply softmax to convert embeddings to probabilities
+    log_probs_orig = torch.log_softmax(
+        original_features, dim=1
+    )  # Log probabilities for original embeddings
+    probs_transformed = torch.softmax(
+        transformed_features, dim=1
+    )  # Probabilities for transformed embeddings
+
+    # Compute KL divergence
+    kl_loss = kl_div(log_probs_orig, probs_transformed)
+    return kl_loss.item()
+
+
+def get_features(images, model):
     with torch.no_grad():
-        features = model(image)
+        images = images.to(device)
+        features = model(images)
     return features.squeeze()
 
 
@@ -150,21 +220,17 @@ def compute_cosine_similarity(original_features, transformed_features):
     return similarity
 
 
-def compute_images_similarity(original_image, transformed_image, model):
+def compute_images_similarity(original_features, transformed_features):
     """
     Compute the similarity between two images using a pre-trained model.
     parameters:
     -----------
         original_image (Tensor): Original image tensor
         transformed_image (Tensor): Transformed image tensor
-        model (nn.Module): Pre-trained model to extract features
     returns:
     --------
         float: Cosine similarity between the two images
     """
-    # Extract features for both images
-    original_features = get_features(original_image, model)
-    transformed_features = get_features(transformed_image, model)
 
     # Compute cosine similarity
     similarity = compute_cosine_similarity(
@@ -190,7 +256,7 @@ def plot_similarity_metric(df, metric_name, labels, title=''):
         plt.plot(
             sequence_index,
             values,
-            label=f"mean={row['mean']}, sigma={row['sigma']}",
+            label=''.join([f'{label} = {row[label]}, ' for label in labels]),
         )
         plt.fill_between(sequence_index, lower_bound, upper_bound, alpha=0.2)
 
@@ -200,3 +266,119 @@ def plot_similarity_metric(df, metric_name, labels, title=''):
     plt.legend(title='parameters')
     plt.grid(True)
     plt.show()
+
+
+def plotly_similarity_metric(
+    df, metric_name, labels, title='', width=1300, height=800
+):
+    fig = go.Figure()
+    # Iterate over rows in the DataFrame
+    for i, row in enumerate(df.iter_rows(named=True)):
+        # Extract values from the row
+        values = row[metric_name]
+        sequence_index = np.arange(len(values))
+
+        # Compute confidence intervals (Here we simulate using standard deviation)
+        ci = 1.96  # 95% confidence interval
+        std_dev = np.std(values) * ci
+        lower_bound = np.array(values) - std_dev
+        upper_bound = np.array(values) + std_dev
+
+        # Generate label string from the `labels` parameter
+        label_str = ', '.join([f'{label} = {row[label]}' for label in labels])
+
+        # Set a color for the line trace (cycle through colors list)
+        color = colors[i % len(colors)]
+
+        # Plot the main line trace
+        line_trace = go.Scatter(
+            x=sequence_index,
+            y=values,
+            mode='lines',
+            name=label_str,
+            line=dict(color=color),  # Set the color explicitly
+            legendgroup=f'group_{i}',  # Group the line with its CI
+        )
+
+        # Add the main line trace to the figure
+        fig.add_trace(line_trace)
+
+        # Convert hex color to rgba with transparency for the CI fillcolor
+        r, g, b = tuple(
+            int(color.lstrip('#')[j : j + 2], 16) for j in (0, 2, 4)
+        )
+        fill_color = f'rgba({r}, {g}, {b}, 0.2)'
+
+        # Add the confidence interval trace with the same color but transparent
+        fig.add_trace(
+            go.Scatter(
+                x=np.concatenate([sequence_index, sequence_index[::-1]]),
+                y=np.concatenate([upper_bound, lower_bound[::-1]]),
+                fill='toself',
+                fillcolor=fill_color,  # Set fill color with transparency
+                line=dict(color='rgba(255,255,255,0)'),  # No line for the CI
+                showlegend=False,  # Do not show CI in legend
+                legendgroup=f'group_{i}',
+            )
+        )
+
+    # Update the layout of the plot
+    fig.update_layout(
+        title=title,
+        xaxis_title='Sequence index',
+        yaxis_title=metric_name,
+        legend_title='Parameters',
+        hovermode='x',
+        template='plotly_white',
+        legend=dict(
+            font=dict(size=10),  # Reduce legend font size
+        ),
+        width=width,
+        height=height,
+    )
+
+    # Show the plot
+    fig.show()
+
+
+def evaluate_augmentations(dataloader, augmentation_name, params, model):
+    metrics = []
+    for batch, _ in tqdm(
+        dataloader,
+        desc='Processing batches',
+        total=len(dataloader),
+        leave=False,
+    ):
+        augmented_transform = apply_augmentation(augmentation_name, params)
+        augmented_images = augmented_transform(batch)
+        # Compute KL divergence
+        # Extract features for both images
+        original_features = get_features(batch, model)
+        transformed_features = get_features(augmented_images, model)
+
+        # kl_div = compute_kl_divergence(batch, augmented_images)
+        kl_div = compute_embeddings_kl_divergence(
+            original_features, transformed_features
+        )
+        cos_sim = compute_images_similarity(
+            original_features, transformed_features
+        )
+        row_dict = {
+            'Augmentation Method': augmentation_name,
+            **params,
+            'KL Divergence': kl_div,
+            'Cosine Similarity': cos_sim,
+            # "class": labels[i].item()
+        }
+        # Store result for each image
+        metrics.append(row_dict)
+    return metrics
+
+
+def apply_augmentation(name, params):
+    if name in available_transforms:
+        transform_cls = available_transforms[name]
+        transform = transform_cls(**params)
+        return transform
+    else:
+        raise ValueError(f'Augmentation {name} not supported')
