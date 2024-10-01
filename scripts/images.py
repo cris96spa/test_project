@@ -10,7 +10,7 @@ import torch.nn as nn
 from torchvision import models
 from scipy.stats import entropy
 from matplotlib import pyplot as plt
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import torchvision.transforms.v2 as transforms
 import plotly.graph_objects as go
 
