@@ -1,5 +1,6 @@
 from PIL import Image
 from cv2 import line
+from matplotlib.style import available
 import polars as pl
 from uuid import uuid4
 import os
@@ -53,6 +54,7 @@ colors = [
 ]
 
 
+# region Saving Helper Functions
 def saving_sample_wrapper(
     image_generator,
     output_folder: str,
@@ -120,25 +122,9 @@ def saving_sample_wrapper(
     yield elem
 
 
-def plot_histogram(image, ax, title='Pixel Intensity Histogram'):
-    """Plot histogram of pixel intensities for an image."""
-    # Image is assumed to be a tensor in CHW format
-    image = image.reshape(-1, 3)  # Flatten the image pixels by channel
+# endregion
 
-    colors = ['r', 'g', 'b']  # Color channels
-    for i, color in enumerate(colors):
-        ax.hist(
-            image[:, i],
-            bins=256,
-            color=color,
-            alpha=0.5,
-            label=f'Channel {color.upper()}',
-        )
-    ax.legend()
-
-    ax.set_title(title)
-    ax.set_xlim([0, 1])  # Assuming normalized [0, 1] pixel values
-    ax.set_ylim([0, 1000])  # Adjust based on the dataset
+# region Similarity Metrics
 
 
 def compute_mean_variance(image_tensor):
@@ -239,6 +225,33 @@ def compute_images_similarity(original_features, transformed_features):
     return similarity.mean().item()
 
 
+# endregion
+
+# region Plotting Functions
+
+
+def plot_histogram(image, ax, title='Pixel Intensity Histogram'):
+    """Plot histogram of pixel intensities for an image."""
+    # Image is assumed to be a tensor in CHW format
+    image = image.reshape(-1, 3)  # Flatten the image pixels by channel
+
+    colors = ['r', 'g', 'b']  # Color channels
+    for i, color in enumerate(colors):
+        ax.hist(
+            image[:, i],
+            bins=256,
+            color=color,
+            alpha=0.4,
+            label=f'Channel {color.upper()}',
+            density=False,
+        )
+    ax.legend()
+
+    ax.set_title(title)
+    ax.set_xlim([0, 1])  # Assuming normalized [0, 1] pixel values
+    ax.set_ylim([0, 1000])
+
+
 def plot_similarity_metric(df, metric_name, labels, title=''):
     plt.figure(figsize=(10, 6))
     for row in df.iter_rows(named=True):
@@ -269,7 +282,7 @@ def plot_similarity_metric(df, metric_name, labels, title=''):
 
 
 def plotly_similarity_metric(
-    df, metric_name, labels, title='', width=1300, height=800
+    df, metric_name, labels, title='', width=1200, height=800
 ):
     fig = go.Figure()
     # Iterate over rows in the DataFrame
@@ -341,6 +354,53 @@ def plotly_similarity_metric(
     fig.show()
 
 
+def plotly_boxplot_metric(
+    df, metric_name, labels, title='', width=1200, height=800
+):
+    fig = go.Figure()
+
+    # Iterate over rows in the DataFrame
+    for i, row in enumerate(df.iter_rows(named=True)):
+        # Extract values from the row
+        values = row[metric_name]
+
+        # Generate label string from the `labels` parameter
+        label_str = ', '.join([f'{label} = {row[label]}' for label in labels])
+
+        # Set a color for the box trace (cycle through colors list)
+        color = colors[i % len(colors)]
+
+        # Plot the box plot for the row
+        box_trace = go.Box(
+            y=values,
+            name=label_str,
+            marker_color=color,  # Set the color explicitly
+            boxmean='sd',  # Option to show mean and standard deviation
+        )
+
+        # Add the box plot trace to the figure
+        fig.add_trace(box_trace)
+
+    # Update the layout of the plot
+    fig.update_layout(
+        title=title,
+        xaxis_title='Parameters',
+        yaxis_title=metric_name,
+        legend_title='Parameters',
+        hovermode='closest',
+        template='plotly_white',
+        width=width,
+        height=height,
+    )
+
+    # Show the plot
+    fig.show()
+
+
+# endregion
+
+
+# region Augmentation Evaluation
 def evaluate_augmentations(dataloader, augmentation_name, params, model):
     metrics = []
     for batch, _ in tqdm(
@@ -349,7 +409,7 @@ def evaluate_augmentations(dataloader, augmentation_name, params, model):
         total=len(dataloader),
         leave=False,
     ):
-        augmented_transform = apply_augmentation(augmentation_name, params)
+        augmented_transform = get_augmentation(augmentation_name, params)
         augmented_images = augmented_transform(batch)
         # Compute KL divergence
         # Extract features for both images
@@ -375,10 +435,160 @@ def evaluate_augmentations(dataloader, augmentation_name, params, model):
     return metrics
 
 
-def apply_augmentation(name, params):
+def get_augmentation(name, params):
     if name in available_transforms:
         transform_cls = available_transforms[name]
         transform = transform_cls(**params)
         return transform
     else:
         raise ValueError(f'Augmentation {name} not supported')
+
+
+class TransformInfo:
+    def __init__(
+        self, transformation, drift_params: dict, constant_params: dict = {}
+    ):
+        self.transformation = transformation
+        self.constant_params = constant_params
+        self.drift_params = drift_params
+
+
+class TransformElement:
+    def __init__(self, transf_name: str, drift_level: float):
+        self.transf_name = transf_name
+        self.drift_level = drift_level
+
+
+available_transforms = {
+    'rotate': TransformInfo(
+        transformation=transforms.RandomRotation, drift_params={'degrees': 180}
+    ),
+    'brightness': TransformInfo(
+        transformation=transforms.ColorJitter,
+        drift_params={'brightness': 10},
+    ),
+    'contrast': TransformInfo(
+        transformation=transforms.ColorJitter, drift_params={'contrast': 10}
+    ),
+    'saturation': TransformInfo(
+        transformation=transforms.ColorJitter,
+        drift_params={'saturation': 50},
+    ),
+    'hue': TransformInfo(
+        transformation=transforms.ColorJitter,
+        drift_params={'hue': 0.5},
+    ),
+    'gaussian_blur': TransformInfo(
+        transformation=transforms.GaussianBlur,
+        constant_params={'kernel_size': 5},
+        drift_params={'sigma': 3.0},
+    ),
+    'gaussian_noise': TransformInfo(
+        transformation=transforms.GaussianNoise,
+        constant_params={'mean': 0.1},
+        drift_params={'sigma': 3.0},
+    ),
+}
+
+
+def get_transform(transform_element: TransformElement):
+    if transform_element is None:
+        raise ValueError('Transform element is None')
+    if transform_element.transf_name in available_transforms:
+        # Get the transform class name
+        transf_info: TransformInfo = available_transforms[
+            transform_element.transf_name
+        ]
+        transform_cls = transf_info.transformation
+
+        # Get parameters
+        params = transf_info.constant_params.copy()
+        drift_params = transf_info.drift_params.copy()
+        # Update drift parameters with the drift level
+        params.update(
+            {
+                key: value * transform_element.drift_level
+                for key, value in drift_params.items()
+            }
+        )
+        transform = transform_cls(**params)
+        return transform
+    else:
+        raise ValueError(
+            f'Augmentation {transform_element.transf_name} not supported'
+        )
+
+
+def get_transform_pipeline(transform_list: list[TransformElement]):
+    return [
+        get_transform(transform_element)
+        for transform_element in transform_list
+    ]
+
+
+def evaluate_transformations(
+    dataloader, transform_list: list[TransformElement], model
+):
+    metrics = []
+    for batch, _ in tqdm(
+        dataloader,
+        desc='Processing batches',
+        total=len(dataloader),
+        leave=False,
+    ):
+        # Get the transform pipeline
+        transform_pipe = get_transform_pipeline(transform_list)
+        transform_pipe = transforms.Compose(transform_pipe)
+
+        # Apply the transformation pipeline
+        augmented_images = transform_pipe(batch)
+
+        # Compute KL divergence
+        # Extract features for both images
+        original_features = get_features(batch, model)
+        transformed_features = get_features(augmented_images, model)
+
+        # kl_div_color = compute_kl_divergence(batch, augmented_images)
+        kl_div = compute_embeddings_kl_divergence(
+            original_features, transformed_features
+        )
+        cos_sim = compute_images_similarity(
+            original_features, transformed_features
+        )
+
+        # Get the parameters for each transformation
+        params = {}
+        augmentation_methods = []
+        for transform_element in transform_list:
+            base_key = transform_element.transf_name
+            augmentation_methods.append(base_key)
+
+            for key, value in available_transforms[
+                base_key
+            ].drift_params.items():
+                params[f'{base_key}_{key}'] = value
+            for key, value in available_transforms[
+                base_key
+            ].constant_params.items():
+                params[f'{base_key}_{key}'] = value
+
+        drift_levels = [
+            transform_element.drift_level
+            for transform_element in transform_list
+        ]
+        avg_drift_level = sum(drift_levels) / len(drift_levels)
+        row_dict = {
+            'Augmentation Methods': augmentation_methods,
+            **params,
+            'KL Divergence': kl_div,
+            # 'KL Divergence Color': kl_div_color,
+            'Cosine Similarity': cos_sim,
+            'Drift Level': avg_drift_level,
+            # "class": labels[i].item()
+        }
+        # Store result for each image
+        metrics.append(row_dict)
+    return metrics
+
+
+# endregion
