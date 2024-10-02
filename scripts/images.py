@@ -461,18 +461,18 @@ class TransformElement:
 
 available_transforms = {
     'rotate': TransformInfo(
-        transformation=transforms.RandomRotation, drift_params={'degrees': 180}
+        transformation=transforms.RandomRotation, drift_params={'degrees': 90}
     ),
     'brightness': TransformInfo(
         transformation=transforms.ColorJitter,
-        drift_params={'brightness': 10},
+        drift_params={'brightness': 5},
     ),
     'contrast': TransformInfo(
-        transformation=transforms.ColorJitter, drift_params={'contrast': 10}
+        transformation=transforms.ColorJitter, drift_params={'contrast': 5}
     ),
     'saturation': TransformInfo(
         transformation=transforms.ColorJitter,
-        drift_params={'saturation': 50},
+        drift_params={'saturation': 15},
     ),
     'hue': TransformInfo(
         transformation=transforms.ColorJitter,
@@ -486,7 +486,7 @@ available_transforms = {
     'gaussian_noise': TransformInfo(
         transformation=transforms.GaussianNoise,
         constant_params={'mean': 0.1},
-        drift_params={'sigma': 3.0},
+        drift_params={'sigma': 1.0},
     ),
 }
 
