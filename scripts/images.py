@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torchvision import models
+from torchvision.utils import save_image
 from scipy.stats import entropy
 from matplotlib import pyplot as plt
 from tqdm.auto import tqdm
@@ -53,7 +54,7 @@ available_transforms = {
 }
 
 
-class TransformInfo:
+class TransformType:
     def __init__(
         self,
         transformation,
@@ -67,40 +68,40 @@ class TransformInfo:
         self.drift_params = drift_params
 
 
-class TransformElement:
+class TransformInfo:
     def __init__(self, transf_name: str, drift_level: float):
         self.transf_name = transf_name
         self.drift_level = drift_level
 
 
 available_transforms = {
-    'rotate': TransformInfo(
+    'rotate': TransformType(
         transformation=transforms.RandomRotation, drift_params={'degrees': 90}
     ),
-    'brightness': TransformInfo(
+    'brightness': TransformType(
         transformation=transforms.ColorJitter,
         drift_params={'brightness': 5},
     ),
-    'contrast': TransformInfo(
+    'contrast': TransformType(
         transformation=transforms.ColorJitter, drift_params={'contrast': 5}
     ),
-    'saturation': TransformInfo(
+    'saturation': TransformType(
         transformation=transforms.ColorJitter,
         drift_params={'saturation': 15},
     ),
-    'hue': TransformInfo(
+    'hue': TransformType(
         transformation=transforms.ColorJitter,
         drift_params={'hue': 0.5},
     ),
-    'gaussian_blur': TransformInfo(
+    'gaussian_blur': TransformType(
         transformation=transforms.GaussianBlur,
         constant_params={'kernel_size': 5},
         drift_params={'sigma': 3.0},
     ),
-    'gaussian_noise': TransformInfo(
+    'gaussian_noise': TransformType(
         transformation=transforms.GaussianNoise,
         constant_params={'mean': 0.1},
-        drift_params={'sigma': 1.0},
+        drift_params={'sigma': 0.5},
     ),
 }
 
@@ -108,12 +109,12 @@ available_transforms = {
 # region Augmentation Evaluation
 
 
-def get_transform(transform_element: TransformElement):
+def get_transform(transform_element: TransformInfo):
     if transform_element is None:
         raise ValueError('Transform element is None')
     if transform_element.transf_name in available_transforms:
         # Get the transform class name
-        transf_info: TransformInfo = available_transforms[
+        transf_info: TransformType = available_transforms[
             transform_element.transf_name
         ]
         transform_cls = transf_info.transformation
@@ -136,7 +137,7 @@ def get_transform(transform_element: TransformElement):
         )
 
 
-def get_transform_pipeline(transform_list: list[TransformElement]):
+def get_transform_pipeline(transform_list: list[TransformInfo]):
     return [
         get_transform(transform_element)
         for transform_element in transform_list
@@ -144,7 +145,7 @@ def get_transform_pipeline(transform_list: list[TransformElement]):
 
 
 def evaluate_transformations(
-    dataloader, transform_list: list[TransformElement], model
+    dataloader, transform_list: list[TransformInfo], model
 ):
     metrics = []
     for batch, _ in tqdm(
@@ -212,6 +213,53 @@ def evaluate_transformations(
 
 
 # region Saving Helper Functions
+
+
+def transform_and_save(
+    dataloader,
+    transform_list: list[TransformInfo],
+    output_path: str,
+):
+    for batch, labels in tqdm(
+        dataloader,
+        desc='Processing batches',
+        total=len(dataloader),
+        leave=False,
+    ):
+        # Get the transform pipeline
+        transform_pipe = get_transform_pipeline(transform_list)
+        transform_pipe = transforms.Compose(transform_pipe)
+
+        # Apply the transformation pipeline
+        augmented_images = transform_pipe(batch)
+        save_images(
+            output_path=output_path,
+            dataset=dataloader.dataset,
+            images=augmented_images,
+            labels=labels,
+        )
+
+
+def save_images(output_path, dataset, images, labels) -> None:
+    """Save the images to the output folder.
+    This method will save the images to the output folder, organized by class.
+
+    parameters:
+    -----------
+    images: tensor of images
+    labels: tensor of labels
+    """
+    for image, label in zip(images, labels):
+        # Create the folder if it doesn't exist
+        class_folder = os.path.join(output_path, dataset.classes[label])
+        os.makedirs(class_folder, exist_ok=True)
+
+        # Save the image
+        filename = str(uuid4()) + '.png'
+        save_path = os.path.join(class_folder, filename)
+        save_image(image, save_path)
+
+
 def saving_sample_wrapper(
     image_generator,
     output_folder: str,
