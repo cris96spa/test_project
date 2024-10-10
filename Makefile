@@ -47,11 +47,8 @@ compile:
 install:
 	uv pip sync requirements.txt --cache-dir .uv_cache
 	
-extra-torch-gpu:
+torch-gpu:
 	uv pip install torch==2.4.0+cu124 torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu124 --upgrade --force-reinstall
-
-extra-torch-cpu:
-	uv pip install torch torchvision torchaudio --upgrade --force-reinstall
 
 setup: install-uv set-hooks compile install
 
