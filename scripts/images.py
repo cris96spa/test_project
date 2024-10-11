@@ -69,8 +69,8 @@ class TransformType:
 
 
 class TransformInfo:
-    def __init__(self, transf_name: str, drift_level: float):
-        self.transf_name = transf_name
+    def __init__(self, transf_type: str, drift_level: float):
+        self.transf_type = transf_type
         self.drift_level = drift_level
 
 
@@ -112,10 +112,10 @@ available_transforms = {
 def get_transform(transform_element: TransformInfo):
     if transform_element is None:
         raise ValueError('Transform element is None')
-    if transform_element.transf_name in available_transforms:
+    if transform_element.transf_type in available_transforms:
         # Get the transform class name
         transf_info: TransformType = available_transforms[
-            transform_element.transf_name
+            transform_element.transf_type
         ]
         transform_cls = transf_info.transformation
 
@@ -133,7 +133,7 @@ def get_transform(transform_element: TransformInfo):
         return transform
     else:
         raise ValueError(
-            f'Augmentation {transform_element.transf_name} not supported'
+            f'Augmentation {transform_element.transf_type} not supported'
         )
 
 
@@ -178,7 +178,7 @@ def evaluate_transformations(
         params = {}
         augmentation_methods = []
         for transform_element in transform_list:
-            base_key = transform_element.transf_name
+            base_key = transform_element.transf_type
             augmentation_methods.append(base_key)
 
             for key, value in available_transforms[
